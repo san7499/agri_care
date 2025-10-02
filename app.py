@@ -4,14 +4,16 @@ from flask import Flask, request, render_template, send_from_directory
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 
-# Flask app
+# Force TensorFlow to use CPU (Render instances usually have no GPU)
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
+# Flask app setup
 app = Flask(__name__)
 
-# Temporary upload folder
 UPLOAD_FOLDER = "/tmp"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 
 # Load the model
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "agricare.keras")
@@ -113,31 +115,24 @@ def predict_disease(img_path):
     img_array = image.img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0) / 255.0
     prediction = model.predict(img_array)
-
     predicted_class = class_labels[np.argmax(prediction)]
     confidence = round(100 * np.max(prediction), 2)
-
     treatment = treatment_suggestions.get(predicted_class, {
         'Fertilizer': ["General balanced fertilizer"],
         'Pesticide': ["No chemical needed"],
         'Organic': ["Maintain compost and irrigation"]
     })
-
     return predicted_class, confidence, treatment
 
 # Home route
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        if "file" not in request.files:
-            return "No file uploaded"
-        file = request.files["file"]
-        if file.filename == "":
+        file = request.files.get("file")
+        if not file or file.filename == "":
             return "No image selected"
-
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(filepath)
-
         prediction, confidence, treatment = predict_disease(filepath)
         return render_template(
             "index.html",
@@ -150,7 +145,7 @@ def index():
         )
     return render_template("index.html")
 
-# Optional route to serve uploaded images
+# Serve uploaded images
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
