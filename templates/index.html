@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AgriCare - Plant Disease Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+body {
+    font-family: 'Roboto', sans-serif;
+    background: #f0f4f8;
+    color: #333;
+    min-height: 100vh;
+}
+
+/* Header */
+header {
+    background: #2e7d32;
+    color: #fff;
+    padding: 15px 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+header img { width:60px; margin-right:15px; }
+header h1 { font-size:2rem; font-weight:700; margin:0; }
+
+/* Tabs */
+.nav-pills .nav-link {
+    font-weight:600;
+    padding: 10px 20px;
+    border-radius:50px;
+    transition:0.3s;
+}
+.nav-pills .nav-link.active {
+    background: #43a047;
+}
+
+/* Cards */
+.card {
+    border-radius: 20px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+}
+
+/* Buttons */
+.btn-upload {
+    background: #43a047;
+    color:#fff;
+    font-weight:700;
+}
+.btn-upload:hover { background: #2e7d32; }
+.btn-capture {
+    background: #fb8c00;
+    color:#fff;
+    font-weight:700;
+}
+.btn-capture:hover { background: #ef6c00; }
+
+/* Image/Video */
+.uploaded-img, #camera {
+    max-width: 100%;
+    border-radius: 20px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+}
+
+/* Prediction badges */
+.badge-healthy { background:#43a047; font-size:1rem; padding:0.6em 1em; }
+.badge-disease { background:#e53935; font-size:1rem; padding:0.6em 1em; }
+
+/* Confidence bar */
+.confidence-bar { height:28px; background:#e0e0e0; border-radius:14px; overflow:hidden; margin:15px 0; }
+.confidence-fill { height:100%; background: linear-gradient(90deg,#56ab2f,#a8e063); color:#fff; font-weight:bold; line-height:28px; text-align:center; border-radius:14px; width:0%; transition: width 1s ease-in-out; }
+
+/* Treatment Cards */
+.treatment-card {
+    border-radius: 15px;
+    padding: 15px;
+    color:#fff;
+    margin-bottom:15px;
+}
+.fertilizer-card { background: #1e88e5; }
+.pesticide-card { background: #d32f2f; }
+.organic-card { background: #fbc02d; color:#333; }
+
+/* Footer */
+footer {
+    background: #2e7d32;
+    color: #fff;
+    padding:15px 0;
+    margin-top:30px;
+}
+footer a { color:#fff; text-decoration:underline; }
+
+/* Responsive */
+@media(max-width:768px){
+    header h1 { font-size:1.5rem; }
+    .nav-pills .nav-link { font-size:0.9rem; padding:8px 15px; }
+}
+</style>
+</head>
+<body>
+
+<header class="d-flex justify-content-center align-items-center">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="AgriCare Logo">
+    <h1>AgriCare - Plant Disease Detection</h1>
+</header>
+
+<div class="container my-4">
+
+    <!-- Tabs -->
+    <ul class="nav nav-pills mb-4 justify-content-center" id="tabNav">
+        <li class="nav-item">
+            <button class="nav-link active" data-tab="upload"><i class="fa-solid fa-upload me-2"></i> Upload Image</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-tab="camera"><i class="fa-solid fa-camera me-2"></i> Capture Image</button>
+        </li>
+    </ul>
+
+    <div class="row g-4">
+        <!-- Left Column: Upload / Camera -->
+        <div class="col-lg-6">
+            <div class="card p-4" id="upload-tab">
+                <h5 class="mb-3 text-center">Upload Leaf Image</h5>
+                <form id="upload-form" method="POST" enctype="multipart/form-data">
+                    <input class="form-control mb-3" type="file" name="file" accept="image/*" required>
+                    <button class="btn btn-upload w-100"><i class="fa-solid fa-upload me-2"></i> Upload & Predict</button>
+                </form>
+            </div>
+
+            <div class="card p-4" id="camera-tab" style="display:none;">
+                <h5 class="mb-3 text-center">Capture Leaf Image</h5>
+                <video id="camera" autoplay playsinline class="d-block mx-auto mb-3"></video>
+                <button id="capture-btn" class="btn btn-capture w-100"><i class="fa-solid fa-camera me-2"></i> Capture & Predict</button>
+            </div>
+        </div>
+
+        {% if file %}
+        <!-- Right Column: Prediction -->
+        <div class="col-lg-6">
+            <img class="uploaded-img mb-3" src="{{ url_for('static', filename=file) }}" alt="Uploaded Image">
+            <div class="card p-4">
+                <h5 class="text-center mb-3">Prediction Result</h5>
+                <p><b>Status:</b> 
+                    <span class="badge {{ 'badge-healthy' if 'healthy' in prediction.lower() else 'badge-disease' }}">{{ prediction }}</span>
+                </p>
+                <p><b>Confidence:</b> {{ confidence }}%</p>
+                <div class="confidence-bar">
+                    <div class="confidence-fill" style="width: {{ confidence }}%;">{{ confidence }}%</div>
+                </div>
+
+                <!-- Treatment Suggestions -->
+                <div class="treatment-card fertilizer-card">
+                    <h6>Fertilizer Suggestions:</h6>
+                    <ul>
+                        {% for item in fertilizer %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="treatment-card pesticide-card">
+                    <h6>Pesticide Suggestions:</h6>
+                    <ul>
+                        {% for item in pesticide %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="treatment-card organic-card">
+                    <h6>Organic Treatment Suggestions:</h6>
+                    <ul>
+                        {% for item in organic %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<footer class="text-center">
+    &copy; 2025 <b>AgriCare</b>. Developed by <a href="#" class="text-white">Farmer</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Animate confidence bar
+const fill = document.querySelector(".confidence-fill");
+if(fill) setTimeout(()=>{ fill.style.width = fill.textContent.trim(); },100);
+
+// Tabs functionality
+const tabs = document.querySelectorAll('#tabNav button');
+const uploadTab = document.getElementById('upload-tab');
+const cameraTab = document.getElementById('camera-tab');
+tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        if(tab.dataset.tab === 'upload') { uploadTab.style.display='block'; cameraTab.style.display='none'; }
+        else { uploadTab.style.display='none'; cameraTab.style.display='block'; }
+    });
+});
+
+// Camera capture
+const video = document.getElementById('camera');
+const captureBtn = document.getElementById('capture-btn');
+navigator.mediaDevices.getUserMedia({ video:true })
+.then(stream => { video.srcObject = stream; })
+.catch(err => { alert('Camera not accessible: '+err); });
+
+captureBtn.addEventListener('click',()=> {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video,0,0);
+    canvas.toBlob(blob=>{
+        const dt = new DataTransfer();
+        dt.items.add(new File([blob],'captured.png',{type:'image/png'}));
+        document.querySelector('input[name="file"]').files = dt.files;
+        document.getElementById('upload-form').submit();
+    },'image/png');
+});
+</script>
+</body>
+</html>
